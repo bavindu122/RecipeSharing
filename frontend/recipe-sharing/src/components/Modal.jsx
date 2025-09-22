@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 
 export const Modal = ({ onClose, onLogin, onRegister }) => {
-  const [mode, setMode] = useState("login"); // 'login' | 'register'
+  const [mode, setMode] = useState("login");
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [regData, setRegData] = useState({
     name: "",
@@ -17,13 +17,22 @@ export const Modal = ({ onClose, onLogin, onRegister }) => {
   const [regErrors, setRegErrors] = useState({});
   const [touched, setTouched] = useState({});
 
-  const handleOverlayClick = (e) => {
-    if (e.target.classList.contains("modal-overlay")) onClose?.();
-  };
+  // UI/UX additions
+  const [showPassword, setShowPassword] = useState(false);
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegConfirm, setShowRegConfirm] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState(null); // weak|medium|strong|null
+
+  // focus trap refs
+  const panelRef = useRef(null);
 
   const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE || "http://localhost:5000",
   });
+
+  const handleOverlayClick = (e) => {
+    if (e.target.classList.contains("modal-overlay")) onClose?.();
+  };
 
   const submitLogin = async (e) => {
     e.preventDefault();
@@ -119,11 +128,85 @@ export const Modal = ({ onClose, onLogin, onRegister }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loginData, regData, mode]);
 
+  // password strength (simple heuristic, for registration only)
+  useEffect(() => {
+    const pwd = regData.password;
+    if (!pwd) return setPasswordStrength(null);
+    let score = 0;
+    if (pwd.length >= 8) score++;
+    if (/[A-Z]/.test(pwd)) score++;
+    if (/[0-9]/.test(pwd)) score++;
+    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+    if (score <= 1) setPasswordStrength("weak");
+    else if (score === 2 || score === 3) setPasswordStrength("medium");
+    else setPasswordStrength("strong");
+  }, [regData.password]);
+
+  // focus trap & initial focus
+  useEffect(() => {
+    if (panelRef.current) {
+      const focusables = panelRef.current.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusables.length) focusables[0].focus();
+    }
+  }, [mode]);
+
+  const onKeyDownTrap = useCallback(
+    (e) => {
+      if (e.key === "Escape") {
+        onClose?.();
+      } else if (e.key === "Tab" && panelRef.current) {
+        const focusables = panelRef.current.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusables.length) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    },
+    [onClose]
+  );
+
+  useEffect(() => {
+    document.addEventListener("keydown", onKeyDownTrap);
+    return () => document.removeEventListener("keydown", onKeyDownTrap);
+  }, [onKeyDownTrap]);
+
+  const toggleShow = (setter) => setter((s) => !s);
+  const strengthLabel = passwordStrength
+    ? passwordStrength.charAt(0).toUpperCase() + passwordStrength.slice(1)
+    : "";
+  const strengthColor =
+    passwordStrength === "strong"
+      ? "#16a34a"
+      : passwordStrength === "medium"
+      ? "#f59e0b"
+      : passwordStrength === "weak"
+      ? "#dc2626"
+      : "transparent";
+
   return (
     <div className="modal-root">
       <div className="modal-overlay" onClick={handleOverlayClick} />
 
-      <div className="modal-panel" role="dialog" aria-modal="true">
+      <div
+        className="modal-panel modal-animate"
+        role="dialog"
+        aria-modal="true"
+        ref={panelRef}
+        aria-labelledby="auth-modal-title"
+      >
+        <h2 id="auth-modal-title" className="modal-heading">
+          {mode === "login" ? "Welcome back" : "Create your account"}
+        </h2>
         <button
           className="modal-close"
           onClick={() => onClose?.()}
@@ -136,12 +219,14 @@ export const Modal = ({ onClose, onLogin, onRegister }) => {
           <button
             className={`switch-btn ${mode === "login" ? "active" : ""}`}
             onClick={() => setMode("login")}
+            type="button"
           >
             Login
           </button>
           <button
             className={`switch-btn ${mode === "register" ? "active" : ""}`}
             onClick={() => setMode("register")}
+            type="button"
           >
             Register
           </button>
@@ -173,15 +258,25 @@ export const Modal = ({ onClose, onLogin, onRegister }) => {
 
             <label className="form-label">
               Password
-              <input
-                type="password"
-                value={loginData.password}
-                onChange={(e) =>
-                  setLoginData({ ...loginData, password: e.target.value })
-                }
-                required
-                aria-invalid={!!loginErrors.password}
-              />
+              <div className="password-wrapper">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={loginData.password}
+                  onChange={(e) =>
+                    setLoginData({ ...loginData, password: e.target.value })
+                  }
+                  required
+                  aria-invalid={!!loginErrors.password}
+                />
+                <button
+                  type="button"
+                  className="pw-toggle"
+                  onClick={() => toggleShow(setShowPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? "🙈" : "👁️"}
+                </button>
+              </div>
               {touched.login && loginErrors.password && (
                 <span className="field-error">{loginErrors.password}</span>
               )}
@@ -240,30 +335,66 @@ export const Modal = ({ onClose, onLogin, onRegister }) => {
 
             <label className="form-label">
               Password
-              <input
-                type="password"
-                value={regData.password}
-                onChange={(e) =>
-                  setRegData({ ...regData, password: e.target.value })
-                }
-                required
-                aria-invalid={!!regErrors.password}
-              />
+              <div className="password-wrapper">
+                <input
+                  type={showRegPassword ? "text" : "password"}
+                  value={regData.password}
+                  onChange={(e) =>
+                    setRegData({ ...regData, password: e.target.value })
+                  }
+                  required
+                  aria-invalid={!!regErrors.password}
+                />
+                <button
+                  type="button"
+                  className="pw-toggle"
+                  onClick={() => toggleShow(setShowRegPassword)}
+                  aria-label={
+                    showRegPassword ? "Hide password" : "Show password"
+                  }
+                >
+                  {showRegPassword ? "🙈" : "👁️"}
+                </button>
+              </div>
               {touched.register && regErrors.password && (
                 <span className="field-error">{regErrors.password}</span>
+              )}
+              {passwordStrength && (
+                <div className="pw-strength" aria-live="polite">
+                  <div
+                    className="pw-bar"
+                    data-strength={passwordStrength}
+                    style={{ backgroundColor: strengthColor }}
+                  />
+                  <span className="pw-label" style={{ color: strengthColor }}>
+                    {strengthLabel}
+                  </span>
+                </div>
               )}
             </label>
             <label className="form-label">
               Confirm Password
-              <input
-                type="password"
-                value={regData.confirmPassword}
-                onChange={(e) =>
-                  setRegData({ ...regData, confirmPassword: e.target.value })
-                }
-                required
-                aria-invalid={!!regErrors.confirmPassword}
-              />
+              <div className="password-wrapper">
+                <input
+                  type={showRegConfirm ? "text" : "password"}
+                  value={regData.confirmPassword}
+                  onChange={(e) =>
+                    setRegData({ ...regData, confirmPassword: e.target.value })
+                  }
+                  required
+                  aria-invalid={!!regErrors.confirmPassword}
+                />
+                <button
+                  type="button"
+                  className="pw-toggle"
+                  onClick={() => toggleShow(setShowRegConfirm)}
+                  aria-label={
+                    showRegConfirm ? "Hide password" : "Show password"
+                  }
+                >
+                  {showRegConfirm ? "🙈" : "👁️"}
+                </button>
+              </div>
               {touched.register && regErrors.confirmPassword && (
                 <span className="field-error">{regErrors.confirmPassword}</span>
               )}
