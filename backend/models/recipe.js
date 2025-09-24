@@ -22,6 +22,9 @@ const RecipeSchema = new mongoose.Schema(
     cuisine: { type: String, trim: true, index: true },
     tags: { type: [String], default: [], index: true },
 
+    // interaction metrics
+    viewCount: { type: Number, default: 0, index: true },
+
     author: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     likedBy: {
       type: [mongoose.Schema.Types.ObjectId],

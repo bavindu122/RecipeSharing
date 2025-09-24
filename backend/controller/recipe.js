@@ -20,16 +20,44 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// simple normalizer for ingredient names
+// Advanced normalizer for ingredient names: unit stripping, singularization and synonym mapping
+const UNIT_REGEX =
+  /\b(tsp|tsps|teaspoon|teaspoons|tbsp|tbsps|tablespoon|tablespoons|cup|cups|g|kg|ml|l|litre|litres|oz|ounce|ounces|lb|pound|pounds|clove|cloves)\b/g;
+const SYNONYMS = {
+  chilli: "chili",
+  chilies: "chili",
+  chiles: "chili",
+  capsicum: "bell pepper",
+  peppers: "pepper",
+  tomatoes: "tomato",
+  onions: "onion",
+  cloves: "clove",
+};
+function singularize(word = "") {
+  if (word.endsWith("ies")) return word.slice(0, -3) + "y"; // berries -> berry
+  if (word.endsWith("ses")) return word.slice(0, -2); // classes -> class (rough)
+  if (word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1);
+  return word;
+}
 function normalizeIngredientName(s = "") {
-  return s
+  const base = s
     .toString()
     .toLowerCase()
-    .trim()
-    .replace(/\b(tsp|teaspoon|tbsp|tablespoon|cup|cups|g|kg|ml|l)\b/g, "")
-    .replace(/[^\w\s]/g, "")
+    .replace(UNIT_REGEX, " ")
+    .replace(/[\d/.-]+/g, " ") // remove numeric quantities/fractions
+    .replace(/[^a-z\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+  if (!base) return "";
+  const tokens = base.split(" ").map((t) => singularize(SYNONYMS[t] || t));
+  // collapse common bigrams (e.g., bell pepper)
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const pair = tokens[i] + " " + tokens[i + 1];
+    if (pair === "bell pepper") {
+      tokens.splice(i, 2, "bell pepper");
+    }
+  }
+  return Array.from(new Set(tokens)).join(" ").trim();
 }
 
 // Escape regex special chars in user input to avoid ReDoS and unexpected matches
@@ -62,8 +90,14 @@ const getRecipeById = async (req, res) => {
     if (!recipe) {
       return res.status(404).json({ message: "Recipe not found" });
     }
+    // Increment view count (avoid awaiting separate save to keep latency low)
+    Recipe.updateOne({ _id: recipe._id }, { $inc: { viewCount: 1 } }).exec();
     const likeCount = Array.isArray(recipe.likedBy) ? recipe.likedBy.length : 0;
-    res.json({ ...recipe.toObject(), likeCount });
+    res.json({
+      ...recipe.toObject(),
+      likeCount,
+      viewCount: (recipe.viewCount || 0) + 1,
+    });
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
   }
