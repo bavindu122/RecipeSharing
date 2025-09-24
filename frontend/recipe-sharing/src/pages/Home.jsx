@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   FaFireAlt,
   FaBolt,
@@ -9,11 +9,19 @@ import {
 } from "react-icons/fa";
 import { assets } from "../assets/assets";
 import { RecipeItems } from "../components/RecipeItems";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 export const Home = () => {
-  const navigate=useNavigate()
-  
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [q, setQ] = useState(() => searchParams.get("q") || "");
+
+  useEffect(() => {
+    const current = searchParams.get("q") || "";
+    if (current !== q) setQ(current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   return (
     <>
       <section className="home">
@@ -42,7 +50,9 @@ export const Home = () => {
                 <span className="stat-label">Rating</span>
               </div>
             </div>
-            <div className="hero-buttons">
+            {/* Search moved to NavBar */}
+
+            <div className="hero-buttons mt-4">
               <button
                 className="btn btn-primary"
                 onClick={() => navigate("/addNewRecipe")}

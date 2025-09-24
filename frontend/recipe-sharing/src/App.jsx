@@ -10,12 +10,20 @@ import { UserProfile } from "./pages/UserProfile";
 import { AuthProvider } from "./context/AuthContext";
 import { AddNewRecipe } from "./pages/AddNewRecipe";
 import { RecipeDetails } from "./pages/RecipeDetails";
+import MyRecipes from "./pages/MyRecipes";
+import Favorites from "./pages/Favorites";
+import EditRecipe from "./pages/EditRecipe";
 
-const getAllRecipes = async () => {
+const getAllRecipes = async ({ request }) => {
   let allRecipes = [];
   const base = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  const url = new URL(request?.url || window.location.href);
+  const q = url.searchParams.get("q");
+  const endpoint = q
+    ? `${base}/recipe?q=${encodeURIComponent(q)}`
+    : `${base}/recipe`;
   await axios
-    .get(`${base}/recipe`)
+    .get(endpoint)
     .then((response) => {
       allRecipes = response.data;
     })
@@ -64,9 +72,33 @@ const router = createBrowserRouter([
         ),
       },
       {
+        path: "/my-recipes",
+        element: (
+          <RequireAuth>
+            <MyRecipes />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/favorites",
+        element: (
+          <RequireAuth>
+            <Favorites />
+          </RequireAuth>
+        ),
+      },
+      {
         path: "/recipe/:id",
         element: <RecipeDetails />,
         loader: getRecipeById,
+      },
+      {
+        path: "/recipe/:id/edit",
+        element: (
+          <RequireAuth>
+            <EditRecipe />
+          </RequireAuth>
+        ),
       },
     ],
   },

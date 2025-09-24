@@ -1,4 +1,5 @@
 const Recipe = require("../models/recipe");
+const mongoose = require("mongoose");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
@@ -19,10 +20,33 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
+// simple normalizer for ingredient names
+function normalizeIngredientName(s = "") {
+  return s
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\b(tsp|teaspoon|tbsp|tablespoon|cup|cups|g|kg|ml|l)\b/g, "")
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Escape regex special chars in user input to avoid ReDoS and unexpected matches
+const escapeRegex = (s = "") => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const getRecipes = async (req, res) => {
   try {
-    const recipes = await Recipe.find().populate("author", "userName");
-    res.json(recipes);
+    const q = (req.query?.q || "").toString().trim();
+    const filter = q
+      ? { title: { $regex: escapeRegex(q), $options: "i" } }
+      : {};
+    const recipes = await Recipe.find(filter).populate("author", "userName");
+    const enriched = recipes.map((r) => ({
+      ...r.toObject(),
+      likeCount: Array.isArray(r.likedBy) ? r.likedBy.length : 0,
+    }));
+    res.json(enriched);
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
   }
@@ -31,18 +55,23 @@ const getRecipes = async (req, res) => {
 const getRecipeById = async (req, res) => {
   const { id } = req.params;
   try {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid recipe id" });
+    }
     const recipe = await Recipe.findById(id).populate("author", "userName");
     if (!recipe) {
       return res.status(404).json({ message: "Recipe not found" });
     }
-    res.json(recipe);
+    const likeCount = Array.isArray(recipe.likedBy) ? recipe.likedBy.length : 0;
+    res.json({ ...recipe.toObject(), likeCount });
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
   }
 };
 
 const createRecipe = async (req, res) => {
-  let { title, ingredients, instructions, time } = req.body;
+  let { title, ingredients, instructions, time, categories, cuisine, tags } =
+    req.body;
 
   // When using multipart/form-data, ingredients/time may arrive as JSON strings
   try {
@@ -51,6 +80,22 @@ const createRecipe = async (req, res) => {
   try {
     if (typeof time === "string") time = JSON.parse(time);
   } catch {}
+  try {
+    if (typeof categories === "string") categories = JSON.parse(categories);
+  } catch {}
+  if (!Array.isArray(categories) && typeof categories === "string")
+    categories = categories
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  try {
+    if (typeof tags === "string") tags = JSON.parse(tags);
+  } catch {}
+  if (!Array.isArray(tags) && typeof tags === "string")
+    tags = tags
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
 
   if (!title || !ingredients || !instructions) {
     return res
@@ -58,12 +103,26 @@ const createRecipe = async (req, res) => {
       .json({ message: "All required fields must be filled" });
   }
   try {
+    // compute normalized ingredients
+    const normalizedIngredients = Array.isArray(ingredients)
+      ? Array.from(
+          new Set(
+            ingredients
+              .map((i) => normalizeIngredientName(i?.name || ""))
+              .filter(Boolean)
+          )
+        )
+      : [];
     const newRecipe = new Recipe({
       title,
       ingredients,
       instructions,
       time,
       coverImage: req.file ? `/images/recipes/${req.file.filename}` : undefined,
+      categories: Array.isArray(categories) ? categories : [],
+      cuisine: cuisine || undefined,
+      tags: Array.isArray(tags) ? tags : [],
+      normalizedIngredients,
       author: req.user?.id,
     });
     await newRecipe.save();
@@ -78,7 +137,8 @@ const createRecipe = async (req, res) => {
 
 const updateRecipe = async (req, res) => {
   const { id } = req.params;
-  let { title, ingredients, instructions, time } = req.body;
+  let { title, ingredients, instructions, time, categories, cuisine, tags } =
+    req.body;
 
   // Normalize potential JSON strings from multipart forms
   try {
@@ -87,10 +147,40 @@ const updateRecipe = async (req, res) => {
   try {
     if (typeof time === "string") time = JSON.parse(time);
   } catch {}
+  try {
+    if (typeof categories === "string") categories = JSON.parse(categories);
+  } catch {}
+  if (!Array.isArray(categories) && typeof categories === "string")
+    categories = categories
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  try {
+    if (typeof tags === "string") tags = JSON.parse(tags);
+  } catch {}
+  if (!Array.isArray(tags) && typeof tags === "string")
+    tags = tags
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
 
   const updateDoc = { title, ingredients, instructions, time };
+  if (Array.isArray(categories)) updateDoc.categories = categories;
+  if (typeof cuisine === "string") updateDoc.cuisine = cuisine;
+  if (Array.isArray(tags)) updateDoc.tags = tags;
   if (req.file) {
     updateDoc.coverImage = `/images/recipes/${req.file.filename}`;
+  }
+
+  // recompute normalizedIngredients if ingredients provided
+  if (Array.isArray(ingredients)) {
+    updateDoc.normalizedIngredients = Array.from(
+      new Set(
+        ingredients
+          .map((i) => normalizeIngredientName(i?.name || ""))
+          .filter(Boolean)
+      )
+    );
   }
 
   try {
@@ -133,11 +223,85 @@ const deleteRecipe = async (req, res) => {
   }
 };
 
+// Get recipes belonging to the authenticated user
+const getMyRecipes = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const recipes = await Recipe.find({ author: userId })
+      .sort({ createdAt: -1 })
+      .populate("author", "userName");
+    const enriched = recipes.map((r) => ({
+      ...r.toObject(),
+      likeCount: Array.isArray(r.likedBy) ? r.likedBy.length : 0,
+    }));
+    res.json(enriched);
+  } catch (error) {
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// Toggle like/unlike for a recipe by the authenticated user
+const toggleLike = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid recipe id" });
+    }
+    const recipe = await Recipe.findById(id);
+    if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+
+    const idx = (recipe.likedBy || []).findIndex(
+      (u) => u.toString() === userId
+    );
+    let liked;
+    if (idx >= 0) {
+      recipe.likedBy.splice(idx, 1);
+      liked = false;
+    } else {
+      recipe.likedBy = recipe.likedBy || [];
+      recipe.likedBy.push(userId);
+      liked = true;
+    }
+    await recipe.save();
+    return res.json({
+      liked,
+      likeCount: recipe.likedBy.length,
+      recipeId: recipe._id,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// Get favorite recipes for the authenticated user
+const getMyFavorites = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    const recipes = await Recipe.find({ likedBy: userId })
+      .sort({ createdAt: -1 })
+      .populate("author", "userName");
+    const enriched = recipes.map((r) => ({
+      ...r.toObject(),
+      likeCount: Array.isArray(r.likedBy) ? r.likedBy.length : 0,
+    }));
+    res.json(enriched);
+  } catch (error) {
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
 module.exports = {
   getRecipes,
   getRecipeById,
   createRecipe,
   updateRecipe,
   deleteRecipe,
+  getMyRecipes,
+  toggleLike,
+  getMyFavorites,
   upload,
 };

@@ -12,6 +12,9 @@ export const AddNewRecipe = () => {
   const [time, setTime] = useState({ prep: "", cook: "", total: "" });
   const [coverImageFile, setCoverImageFile] = useState(null);
   const [coverPreview, setCoverPreview] = useState("");
+  const [categories, setCategories] = useState("");
+  const [cuisine, setCuisine] = useState("");
+  const [tags, setTags] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -84,6 +87,27 @@ export const AddNewRecipe = () => {
       );
       form.append("instructions", instructions.trim());
       form.append("time", JSON.stringify({ ...time }));
+      if (categories)
+        form.append(
+          "categories",
+          JSON.stringify(
+            categories
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          )
+        );
+      if (cuisine) form.append("cuisine", cuisine.trim());
+      if (tags)
+        form.append(
+          "tags",
+          JSON.stringify(
+            tags
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          )
+        );
       if (coverImageFile) {
         form.append("coverImage", coverImageFile);
       }
@@ -284,6 +308,46 @@ export const AddNewRecipe = () => {
                 }
                 placeholder="Total (e.g., 30 mins)"
                 className="rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+              />
+            </div>
+          </div>
+
+          {/* Metadata */}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block font-semibold text-neutral-200 mb-1">
+                Categories (comma separated)
+              </label>
+              <input
+                type="text"
+                value={categories}
+                onChange={(e) => setCategories(e.target.value)}
+                placeholder="e.g., Dessert, Quick"
+                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/60 w-full"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-neutral-200 mb-1">
+                Cuisine
+              </label>
+              <input
+                type="text"
+                value={cuisine}
+                onChange={(e) => setCuisine(e.target.value)}
+                placeholder="e.g., Italian"
+                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/60 w-full"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-neutral-200 mb-1">
+                Tags (comma separated)
+              </label>
+              <input
+                type="text"
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                placeholder="e.g., spicy, gluten-free"
+                className="rounded-lg border border-white/10 bg-black/30 px-3 py-2.5 text-white placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/60 w-full"
               />
             </div>
           </div>
