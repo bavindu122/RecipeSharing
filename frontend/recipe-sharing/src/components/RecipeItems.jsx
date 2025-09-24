@@ -1,10 +1,11 @@
 import React from "react";
-import { useLoaderData } from "react-router-dom";
+import { useLoaderData, useNavigate } from "react-router-dom";
 import { assets } from "../assets/assets";
 import { FaClock, FaHeart, FaUtensils, FaEye } from "react-icons/fa";
 
 export const RecipeItems = () => {
   const recipes = useLoaderData();
+  const navigate = useNavigate();
   console.log(recipes);
   return (
     <>
@@ -23,6 +24,8 @@ export const RecipeItems = () => {
               imgSrc = item.image || item.imageUrl;
             }
             const title = item?.title || "Untitled Recipe";
+            const authorName =
+              item?.author?.userName || item?.authorName || null;
             const prep = item?.time?.prep ?? "--";
             const cook = item?.time?.cook ?? "--";
             const total = item?.time?.total ?? "--";
@@ -42,6 +45,14 @@ export const RecipeItems = () => {
 
                 <div className="card-body">
                   <div className="title">{title}</div>
+                  {authorName && (
+                    <div className="text-sm text-neutral-300/80 mb-1">
+                      by{" "}
+                      <span className="font-semibold text-white">
+                        {authorName}
+                      </span>
+                    </div>
+                  )}
                   <div className="card-meta">
                     <span className="meta" title="Cook time">
                       <FaClock /> {cook}
@@ -54,7 +65,10 @@ export const RecipeItems = () => {
                   </div>
 
                   <div className="card-actions">
-                    <button className="btn btn-secondary btn-sm">
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => navigate(`/recipe/${item?._id}`)}
+                    >
                       <FaEye /> <span>View Recipe</span>
                     </button>
                   </div>

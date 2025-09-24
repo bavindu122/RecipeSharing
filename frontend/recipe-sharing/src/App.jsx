@@ -9,11 +9,13 @@ import { RequireAuth } from "./components/RequireAuth";
 import { UserProfile } from "./pages/UserProfile";
 import { AuthProvider } from "./context/AuthContext";
 import { AddNewRecipe } from "./pages/AddNewRecipe";
+import { RecipeDetails } from "./pages/RecipeDetails";
 
 const getAllRecipes = async () => {
   let allRecipes = [];
+  const base = import.meta.env.VITE_API_BASE || "http://localhost:5000";
   await axios
-    .get("http://localhost:5000/recipe")
+    .get(`${base}/recipe`)
     .then((response) => {
       allRecipes = response.data;
     })
@@ -21,6 +23,18 @@ const getAllRecipes = async () => {
       console.error("Error fetching recipes:", error);
     });
   return allRecipes;
+};
+
+const getRecipeById = async ({ params }) => {
+  const base = import.meta.env.VITE_API_BASE || "http://localhost:5000";
+  const id = params?.id;
+  try {
+    const { data } = await axios.get(`${base}/recipe/${id}`);
+    return data;
+  } catch (error) {
+    console.error("Error fetching recipe:", error);
+    return null;
+  }
 };
 
 const router = createBrowserRouter([
@@ -48,6 +62,11 @@ const router = createBrowserRouter([
             <AddNewRecipe />
           </RequireAuth>
         ),
+      },
+      {
+        path: "/recipe/:id",
+        element: <RecipeDetails />,
+        loader: getRecipeById,
       },
     ],
   },

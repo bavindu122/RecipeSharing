@@ -21,7 +21,7 @@ const upload = multer({ storage: storage });
 
 const getRecipes = async (req, res) => {
   try {
-    const recipes = await Recipe.find();
+    const recipes = await Recipe.find().populate("author", "userName");
     res.json(recipes);
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
@@ -31,7 +31,7 @@ const getRecipes = async (req, res) => {
 const getRecipeById = async (req, res) => {
   const { id } = req.params;
   try {
-    const recipe = await Recipe.findById(id);
+    const recipe = await Recipe.findById(id).populate("author", "userName");
     if (!recipe) {
       return res.status(404).json({ message: "Recipe not found" });
     }
@@ -64,6 +64,7 @@ const createRecipe = async (req, res) => {
       instructions,
       time,
       coverImage: req.file ? `/images/recipes/${req.file.filename}` : undefined,
+      author: req.user?.id,
     });
     await newRecipe.save();
     res.status(201).json(newRecipe);
@@ -93,12 +94,20 @@ const updateRecipe = async (req, res) => {
   }
 
   try {
+    // Optionally enforce ownership: only allow author to update
+    const existing = await Recipe.findById(id);
+    if (!existing) return res.status(404).json({ message: "Recipe not found" });
+    if (
+      existing.author &&
+      req.user?.id &&
+      existing.author.toString() !== req.user.id
+    ) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
     const updatedRecipe = await Recipe.findByIdAndUpdate(id, updateDoc, {
       new: true,
     });
-    if (!updatedRecipe) {
-      return res.status(404).json({ message: "Recipe not found" });
-    }
     res.json(updatedRecipe);
   } catch (error) {
     res.status(500).json({ message: "Server Error" });
@@ -108,10 +117,16 @@ const updateRecipe = async (req, res) => {
 const deleteRecipe = async (req, res) => {
   const { id } = req.params;
   try {
-    const deletedRecipe = await Recipe.findByIdAndDelete(id);
-    if (!deletedRecipe) {
-      return res.status(404).json({ message: "Recipe not found" });
+    const existing = await Recipe.findById(id);
+    if (!existing) return res.status(404).json({ message: "Recipe not found" });
+    if (
+      existing.author &&
+      req.user?.id &&
+      existing.author.toString() !== req.user.id
+    ) {
+      return res.status(403).json({ message: "Forbidden" });
     }
+    await existing.deleteOne();
     res.json({ message: "Recipe deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Server Error" });

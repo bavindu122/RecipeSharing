@@ -5,14 +5,16 @@ const {
   createRecipe,
   updateRecipe,
   deleteRecipe,
-  upload
+  upload,
 } = require("../controller/recipe");
 const router = express.Router();
+const verifyToken = require("../middleware/auth");
 
 router.get("/", getRecipes);
 router.get("/:id", getRecipeById);
-router.post("/", upload.single("coverImage"), createRecipe);
-router.put("/:id", upload.single("coverImage"), updateRecipe);
-router.delete("/:id", deleteRecipe);
+// Verify auth BEFORE handling file uploads to avoid saving files on unauthorized requests
+router.post("/", verifyToken, upload.single("coverImage"), createRecipe);
+router.put("/:id", verifyToken, upload.single("coverImage"), updateRecipe);
+router.delete("/:id", verifyToken, deleteRecipe);
 
 module.exports = router;

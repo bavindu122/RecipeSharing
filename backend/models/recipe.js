@@ -25,20 +25,20 @@ const recipeSchema = new mongoose.Schema(
     time: {
       prep: {
         type: String,
-       
       },
       cook: {
         type: String,
-        
       },
       total: {
         type: String,
-        
       },
     },
     coverImage: {
       type: String,
-     
+    },
+    author: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     },
   },
   { timestamps: true }
