@@ -1,20 +1,26 @@
 import React, { useState } from "react";
 import { NavBar } from "./NavBar";
 import { Footer } from "./Footer";
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { Modal } from "./Modal";
+import { useAuth } from "../context/AuthContext";
 
 export const MainNav = () => {
   const [modalOpen, setModalOpen] = useState(false);
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
   function handleLogin(data) {
-    console.log("Login:", data);
+    // data shape: { token, userId, userName, email? }
+    login(data);
     setModalOpen(false);
+    navigate("/profile", { replace: true });
   }
 
   function handleRegister(data) {
-    console.log("Register:", data);
+    login(data);
     setModalOpen(false);
+    navigate("/profile", { replace: true });
   }
 
   return (

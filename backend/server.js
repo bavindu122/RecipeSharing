@@ -3,6 +3,7 @@ const app = express();
 const dotenv = require("dotenv");
 const connectDB = require("./config/connectionDB");
 const cors = require("cors");
+const path = require("path");
 
 dotenv.config();
 app.use(cors());
@@ -13,6 +14,8 @@ const port = process.env.PORT || 3000;
 connectDB().catch((err) => console.error("DB connection failed:", err));
 
 app.use(express.json());
+// serve uploaded images
+app.use("/images", express.static(path.join(__dirname, "public", "images")));
 
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 

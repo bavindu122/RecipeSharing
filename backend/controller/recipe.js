@@ -1,4 +1,23 @@
 const Recipe = require("../models/recipe");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
+
+const uploadDir = path.join(__dirname, "..", "public", "images", "recipes");
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    try {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    } catch {}
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const filename = Date.now() + "-" + file.originalname;
+    cb(null, filename);
+  },
+});
+const upload = multer({ storage: storage });
 
 const getRecipes = async (req, res) => {
   try {
@@ -23,9 +42,20 @@ const getRecipeById = async (req, res) => {
 };
 
 const createRecipe = async (req, res) => {
-  const { title, ingredients, instructions, time } = req.body;
+  let { title, ingredients, instructions, time } = req.body;
+
+  // When using multipart/form-data, ingredients/time may arrive as JSON strings
+  try {
+    if (typeof ingredients === "string") ingredients = JSON.parse(ingredients);
+  } catch {}
+  try {
+    if (typeof time === "string") time = JSON.parse(time);
+  } catch {}
+
   if (!title || !ingredients || !instructions) {
-    return res.status(400).json({ message: "All required fields must be filled" });
+    return res
+      .status(400)
+      .json({ message: "All required fields must be filled" });
   }
   try {
     const newRecipe = new Recipe({
@@ -33,6 +63,7 @@ const createRecipe = async (req, res) => {
       ingredients,
       instructions,
       time,
+      coverImage: req.file ? `/images/recipes/${req.file.filename}` : undefined,
     });
     await newRecipe.save();
     res.status(201).json(newRecipe);
@@ -46,14 +77,25 @@ const createRecipe = async (req, res) => {
 
 const updateRecipe = async (req, res) => {
   const { id } = req.params;
-  const { title, ingredients, instructions, time } = req.body;
+  let { title, ingredients, instructions, time } = req.body;
+
+  // Normalize potential JSON strings from multipart forms
+  try {
+    if (typeof ingredients === "string") ingredients = JSON.parse(ingredients);
+  } catch {}
+  try {
+    if (typeof time === "string") time = JSON.parse(time);
+  } catch {}
+
+  const updateDoc = { title, ingredients, instructions, time };
+  if (req.file) {
+    updateDoc.coverImage = `/images/recipes/${req.file.filename}`;
+  }
 
   try {
-    const updatedRecipe = await Recipe.findByIdAndUpdate(
-      id,
-      { title, ingredients, instructions, time },
-      { new: true }
-    );
+    const updatedRecipe = await Recipe.findByIdAndUpdate(id, updateDoc, {
+      new: true,
+    });
     if (!updatedRecipe) {
       return res.status(404).json({ message: "Recipe not found" });
     }
@@ -82,4 +124,5 @@ module.exports = {
   createRecipe,
   updateRecipe,
   deleteRecipe,
+  upload,
 };

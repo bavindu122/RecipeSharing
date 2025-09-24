@@ -9,14 +9,16 @@ import {
 } from "react-icons/fa";
 import { assets } from "../assets/assets";
 import { RecipeItems } from "../components/RecipeItems";
+import { useNavigate } from "react-router-dom";
 
 export const Home = () => {
+  const navigate=useNavigate()
+  
   return (
     <>
       <section className="home">
         <div className="hero-content">
           <div className="left">
-        
             <h1 className="hero-title">
               Discover Amazing
               <span className="highlight"> Food Recipes</span>
@@ -41,8 +43,11 @@ export const Home = () => {
               </div>
             </div>
             <div className="hero-buttons">
-              <button className="btn btn-primary">
-                <span>Get Started</span>
+              <button
+                className="btn btn-primary"
+                onClick={() => navigate("/addNewRecipe")}
+              >
+                <span>Share Your Recipe </span>
               </button>
               <button className="btn btn-secondary">
                 <FaPlay />

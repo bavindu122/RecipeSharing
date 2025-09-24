@@ -51,7 +51,7 @@ export const Modal = ({ onClose, onLogin, onRegister }) => {
     try {
       const response = await api.post("/user/login", normalized);
       console.log("Login successful:", response.data);
-      onLogin?.(response.data);
+      onLogin?.({ ...response.data, email: normalized.email });
       onClose?.();
     } catch (error) {
       console.error("Error during login:", error);
@@ -77,7 +77,7 @@ export const Modal = ({ onClose, onLogin, onRegister }) => {
       const payload = { userName: name, email, password };
       const response = await api.post("/user/register", payload);
       console.log("Registration successful:", response.data);
-      onRegister?.(response.data);
+      onRegister?.({ ...response.data, email });
       // optionally switch to login
       setMode("login");
       setLoginData((prev) => ({ ...prev, email: regData.email }));

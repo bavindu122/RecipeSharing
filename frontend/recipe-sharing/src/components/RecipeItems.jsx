@@ -11,7 +11,17 @@ export const RecipeItems = () => {
       <div className="card-container">
         {Array.isArray(recipes) && recipes.length > 0 ? (
           recipes.map((item, index) => {
-            const imgSrc = item?.image || item?.imageUrl || assets.foodImage;
+            // Build image source: prefer backend-provided coverImage
+            let imgSrc = assets.foodImage;
+            const apiBase =
+              import.meta.env.VITE_API_BASE || "http://localhost:5000";
+            if (item?.coverImage) {
+              imgSrc = item.coverImage.startsWith("http")
+                ? item.coverImage
+                : `${apiBase}${item.coverImage}`;
+            } else if (item?.image || item?.imageUrl) {
+              imgSrc = item.image || item.imageUrl;
+            }
             const title = item?.title || "Untitled Recipe";
             const prep = item?.time?.prep ?? "--";
             const cook = item?.time?.cook ?? "--";
@@ -21,7 +31,7 @@ export const RecipeItems = () => {
             return (
               <div className="card" key={index}>
                 <div className="card-image-wrapper">
-                  <img src={assets.beefSteak} alt={title} className="card-image" />
+                  <img src={imgSrc} alt={title} className="card-image" />
                   <button
                     className="icon-btn fav-btn"
                     aria-label="Add to favourites"

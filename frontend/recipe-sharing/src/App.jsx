@@ -5,6 +5,10 @@ import "./index.css";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { MainNav } from "./components/MainNav";
 import axios from "axios";
+import { RequireAuth } from "./components/RequireAuth";
+import { UserProfile } from "./pages/UserProfile";
+import { AuthProvider } from "./context/AuthContext";
+import { AddNewRecipe } from "./pages/AddNewRecipe";
 
 const getAllRecipes = async () => {
   let allRecipes = [];
@@ -29,15 +33,31 @@ const router = createBrowserRouter([
         element: <Home />,
         loader: getAllRecipes,
       },
+      {
+        path: "/profile",
+        element: (
+          <RequireAuth>
+            <UserProfile />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: "/addNewRecipe",
+        element: (
+          <RequireAuth>
+            <AddNewRecipe />
+          </RequireAuth>
+        ),
+      },
     ],
   },
 ]);
 
 function App() {
   return (
-    <>
+    <AuthProvider>
       <RouterProvider router={router} />
-    </>
+    </AuthProvider>
   );
 }
 
